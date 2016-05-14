@@ -395,14 +395,17 @@ public class StatusBarIconController implements Tunable {
             }
         }
 
-        if (mCarrierLabel != null) {
-            if (!forceHideByNumberOfIcons && !mUserDisabledStatusbarCarrier ) {
-		if (mCarrierLabelSpot == 0) {
-               mCarrierLabel.setVisibility(View.VISIBLE);  
-              } else {  mCarrierLabel.setVisibility(View.GONE);}
-            } else {
-               mCarrierLabel.setVisibility(View.GONE);
-            }
+	if (mCarrierLabel != null) {
+		
+	if (!forceHideByNumberOfIcons && !mUserDisabledStatusbarCarrier ) {
+		
+	if (mCarrierLabelSpot == 0) {
+	
+	mCarrierLabel.setVisibility(View.VISIBLE);  
+	} else {  
+	mCarrierLabel.setVisibility(View.GONE);
+	}
+           }
         }
     }
 
