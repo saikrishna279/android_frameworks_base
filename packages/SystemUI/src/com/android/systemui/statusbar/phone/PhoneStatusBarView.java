@@ -136,7 +136,7 @@ public class PhoneStatusBarView extends PanelBar {
         mBarTransitions.init();
     }
 
-    private void updateVisibilities() {
+    public void updateVisibilities() {
         clearCarrierView();
 
         if (mCarrierLabelSpot == 0) {

@@ -16,7 +16,6 @@
 
 package com.android.systemui.statusbar.phone;
 
-
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.TimeInterpolator;
@@ -129,6 +128,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.LinearLayout;
+import android.widget.Toast;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.statusbar.NotificationVisibility;
 import com.android.internal.statusbar.IStatusBarService;
@@ -762,8 +762,8 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                     Settings.System.NAVBAR_TINT_SWITCH),
                     false, this, UserHandle.USER_ALL);
 	resolver.registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.NAVBAR_BUTTON_COLOR),
-                    false, this, UserHandle.USER_ALL);
+                    Settings.System.HIDE_CARRIER_MAX_SWITCH),
+                    false, this, UserHandle.USER_ALL);                   
 		    update();
         }
 
@@ -880,7 +880,12 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 		} else if (uri.equals(Settings.System.getUriFor(
                     Settings.System.NAVBAR_BUTTON_COLOR))) {
 		    mNavigationController.updateNavbarOverlay(getNavbarThemedResources());
-		} 
+		} else if (uri.equals(Settings.System.getUriFor(
+                    Settings.System.HIDE_CARRIER_MAX_SWITCH))) {
+		    mStatusBarView.updateVisibilities();
+		    maketoast();
+		    DontStressOnRecreate();
+		}
          update();
         }
 
@@ -3080,6 +3085,11 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         if (mIconController != null) {
             mIconController.updateStatusIconsColor();
         }
+    }
+    
+    public void maketoast() {
+       Toast.makeText(mContext,
+                        R.string.carrier_warning, Toast.LENGTH_SHORT).show();
     }
 
     private void updateNotificationIconsColor() {

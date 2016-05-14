@@ -131,6 +131,7 @@ public class StatusBarIconController implements Tunable {
 
     private Animator mColorTransitionAnimator;
     public Boolean mColorSwitch = false ;
+    private int mCarrierLabelSpot;
 
     private TextView mCarrierLabel;
     private int mCarrierLabelMode;
@@ -169,12 +170,12 @@ public class StatusBarIconController implements Tunable {
         mDarkModeIconColorSingleTone = context.getColor(R.color.dark_mode_icon_color_single_tone);
         mLightModeIconColorSingleTone = context.getColor(R.color.light_mode_icon_color_single_tone);
 
-        mCarrierLabel = (TextView) statusBar.findViewById(R.id.statusbar_carrier_text);
+        mCarrierLabel = (TextView) statusBar.findViewById(R.id.left_statusbar_carrier_text);
         mHandler = new Handler();
 
         mClockController = new ClockController(statusBar, mNotificationIcons, mHandler);
         mCenterClockLayout = statusBar.findViewById(R.id.center_clock_layout);
-
+        
         SettingsObserver settingsObserver = new SettingsObserver(mHandler);
         settingsObserver.observe();
 
@@ -364,6 +365,10 @@ public class StatusBarIconController implements Tunable {
 
         mCarrierLabelMode = Settings.System.getIntForUser(resolver,
                 Settings.System.STATUS_BAR_SHOW_CARRIER, 1, UserHandle.USER_CURRENT);
+                
+        mCarrierLabelSpot = Settings.System.getIntForUser(resolver,
+                Settings.System.STATUS_BAR_CARRIER_SPOT, 0,
+                UserHandle.USER_CURRENT);
 
         boolean mUserDisabledStatusbarCarrier = false;
 
@@ -392,7 +397,9 @@ public class StatusBarIconController implements Tunable {
 
         if (mCarrierLabel != null) {
             if (!forceHideByNumberOfIcons && !mUserDisabledStatusbarCarrier ) {
-               mCarrierLabel.setVisibility(View.VISIBLE);
+		if (mCarrierLabelSpot == 0) {
+               mCarrierLabel.setVisibility(View.VISIBLE);  
+              } else {  mCarrierLabel.setVisibility(View.GONE);}
             } else {
                mCarrierLabel.setVisibility(View.GONE);
             }
@@ -801,8 +808,7 @@ public class StatusBarIconController implements Tunable {
     public int getCurrentVisibleNotificationIcons() {
         return mNotificationIcons.getChildCount();
     }
-
-    class SettingsObserver extends ContentObserver {
+       class SettingsObserver extends ContentObserver {
         SettingsObserver(Handler handler) {
             super(handler);
     }
@@ -820,8 +826,7 @@ public class StatusBarIconController implements Tunable {
     @Override
     public void onChange(boolean selfChange, Uri uri) {
         super.onChange(selfChange, uri);
-
-        if (uri.equals(Settings.System.getUriFor(
+	if (uri.equals(Settings.System.getUriFor(
             Settings.System.HIDE_CARRIER_MAX_SWITCH))
             || uri.equals(Settings.System.getUriFor(
             Settings.System.HIDE_CARRIER_MAX_NOTIFICATION))) {
