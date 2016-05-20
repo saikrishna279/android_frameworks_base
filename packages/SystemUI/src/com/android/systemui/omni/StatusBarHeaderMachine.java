@@ -18,6 +18,7 @@
 
 package com.android.systemui.omni;
 
+import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -53,6 +54,8 @@ public class StatusBarHeaderMachine {
         public void enableProvider();
 
         public void disableProvider();
+        
+        public void updateResources(Resources res);
     }
 
     public interface IStatusBarHeaderMachineObserver {
@@ -67,6 +70,7 @@ public class StatusBarHeaderMachine {
     private Handler mHandler = new Handler();
     private boolean mAttached;
     private boolean mScreenOn = true;
+    private PendingIntent mAlarmHourly;
 
     // broadcast providers sent when they update the header image
     public static final String STATUS_BAR_HEADER_UPDATE_ACTION = "com.android.systemui.omni.STATUS_BAR_HEADER_UPDATE";
@@ -117,12 +121,19 @@ public class StatusBarHeaderMachine {
 
         @Override
         public void onChange(boolean selfChange) {
-            doUpdateStatusHeaderObservers(true); // simplest way to update poly headers without clobbering API
+            boolean mThemeswitch = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.THEME_CUSTOM_HEADER, 0,
+                UserHandle.USER_CURRENT) == 1;
             final boolean customHeader = Settings.System.getIntForUser(mContext.getContentResolver(),
                     Settings.System.STATUS_BAR_CUSTOM_HEADER, 0,
-                    UserHandle.USER_CURRENT) == 1;
+                    UserHandle.USER_CURRENT) == 1; 
+            if (customHeader) {        
+            if (mThemeswitch) {
+            doUpdateStatusHeaderObservers(true);
+            updateEnablement(false);            
+            } else {
+            doUpdateStatusHeaderObservers(true); // simplest way to update poly headers without clobbering API
 
-            if (customHeader) {
                 // forward to all observer
                 if (mProviders.size() > 0) {
                     Iterator<IStatusBarHeaderProvider> nextProvider = mProviders
@@ -141,16 +152,16 @@ public class StatusBarHeaderMachine {
                     doUpdateStatusHeaderObservers(true);
                 }
             }
-            updateEnablement();
-        }
+            updateEnablement(false);
+	  } 
+      }
     }
 
     private SettingsObserver mSettingsObserver = new SettingsObserver(mHandler);
 
-    public StatusBarHeaderMachine(Context context) {
+    public StatusBarHeaderMachine(Context context, Resources res) {
         mContext = context;
-        // TODO only one provider for now
-        addProvider(new DaylightHeaderProvider(context));
+        addProvider(new DaylightHeaderProvider(context,res));
         mSettingsObserver.observe();
     }
 
@@ -165,6 +176,35 @@ public class StatusBarHeaderMachine {
             }
         }
         return null;
+    }
+
+    public Drawable getDefault() {
+        IStatusBarHeaderProvider provider = getCurrentProvider();
+        if (provider != null) {
+            try {
+                return provider.getCurrent(null);
+            } catch (Exception e) {
+                // just in case
+            }
+        }
+        return null;
+    }
+
+    public void updateResources(Resources res) {
+        if (mProviders.size() > 0) {
+            Iterator<IStatusBarHeaderProvider> nextProvider = mProviders
+                    .iterator();
+            while (nextProvider.hasNext()) {
+                IStatusBarHeaderProvider provider = nextProvider.next();
+                provider.updateResources(res);
+            }
+        }
+        forceUpdate();
+    }
+
+    public void forceUpdate() {
+        doUpdateStatusHeaderObservers(true);
+        updateEnablement(true);
     }
 
     public void addProvider(IStatusBarHeaderProvider provider) {
@@ -206,16 +246,19 @@ public class StatusBarHeaderMachine {
         while (nextObserver.hasNext()) {
             IStatusBarHeaderMachineObserver observer = nextObserver.next();
             try {
-                observer.disableHeader();
+                observer.updateHeader(getDefault(), true);
             } catch (Exception e) {
                 // just in case
             }
         }
     }
 
-    public void updateEnablement() {
+    public void updateEnablement(boolean force) {
         final boolean customHeader = Settings.System.getIntForUser(mContext.getContentResolver(),
                 Settings.System.STATUS_BAR_CUSTOM_HEADER, 0,
+                UserHandle.USER_CURRENT) == 1;
+        boolean mThemeswitch = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.THEME_CUSTOM_HEADER, 0,
                 UserHandle.USER_CURRENT) == 1;
         // TODO when we support switching providers this must be done properly here
         // unregister old provider first
@@ -237,25 +280,54 @@ public class StatusBarHeaderMachine {
                 mAttached = true;
             }
         } else {
-            if (mAttached) {
-                provider.disableProvider();
-                mContext.unregisterReceiver(mBroadcastReceiver);
-                doDisableStatusHeaderObservers();
+            if (mAttached || force) {
+		    if (!force) {
+			mContext.unregisterReceiver(mBroadcastReceiver);
+		    }
+		doDisableStatusHeaderObservers();
                 mAttached = false;
             }
         }
     }
+    
+    
+    private void stopHourlyAlarm() {
+        if (mAlarmHourly != null) {
+            final AlarmManager alarmManager = (AlarmManager) mContext
+                    .getSystemService(Context.ALARM_SERVICE);
+            if (DEBUG) Log.i(TAG, "stop hourly alarm");
+            alarmManager.cancel(mAlarmHourly);
+        }
+        mAlarmHourly = null;
+    }
 
     private IStatusBarHeaderProvider getCurrentProvider() {
-        if (mProviders.size() == 1) {
+	boolean mThemeswitch = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.THEME_CUSTOM_HEADER, 0,
+                UserHandle.USER_CURRENT) == 1;
+       String currentProvider = Settings.System.getStringForUser(mContext.getContentResolver(),
+                    Settings.System.STATUS_BAR_CUSTOM_HEADER_PROVIDER,
+                    UserHandle.USER_CURRENT);
+        if (mThemeswitch) {    
+            if (currentProvider == null) {
+            currentProvider = DaylightHeaderProvider.TAG;
+        }
+        if (mProviders.size() > 0) {
+            Iterator<IStatusBarHeaderProvider> nextProvider = mProviders
+                    .iterator();
+            while (nextProvider.hasNext()) {
+                IStatusBarHeaderProvider provider = nextProvider.next();
+                if (provider.getName().equals(currentProvider)) {
+                    return provider;
+                }
+            }
+        }
+    } else {
+            if (mProviders.size() == 1) {
             return mProviders.get(0);
         }
 
         if (mProviders.size() > 1) {
-            String currentProvider = Settings.System.getStringForUser(mContext.getContentResolver(),
-                    Settings.System.STATUS_BAR_CUSTOM_HEADER_PROVIDER,
-                    UserHandle.USER_CURRENT);
-
             if (currentProvider == null) {
                 return mProviders.get(0);
             }
@@ -266,9 +338,11 @@ public class StatusBarHeaderMachine {
                 IStatusBarHeaderProvider provider = nextProvider.next();
                 if (provider.getName().equals(currentProvider)) {
                     return provider;
-                }
-            }
-        }
+		  }
+		}
+	      }
+	    }   
         return null;
-    }
-}
+     }
+  }
+

@@ -569,7 +569,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 
     private int mBlurRadius;
     private Bitmap mBlurredImage = null;
-        private NavigationController mNavigationController;
+    private NavigationController mNavigationController;
     private DUPackageMonitor mPackageMonitor;
 
     private final Runnable mRemoveNavigationBar = new Runnable() {
@@ -758,6 +758,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         resolver.registerContentObserver(Settings.Secure.getUriFor(
                     Settings.Secure.FLING_PULSE_ENABLED),
                     false, this, UserHandle.USER_ALL);
+        resolver.registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.THEME_CUSTOM_HEADER),
+                    false, this, UserHandle.USER_ALL);
 		    update();
         }
 
@@ -874,6 +877,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 		}  else if (uri.equals(Settings.Secure.getUriFor(
                     Settings.Secure.FLING_PULSE_ENABLED))) {
 		    makepulsetoast();
+		}   else if (uri.equals(Settings.System.getUriFor(
+                    Settings.System.THEME_CUSTOM_HEADER))) {
+		    DontStressOnRecreate();
 		}
          update();
         }
@@ -1488,6 +1494,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mStatusBarWindow = new StatusBarWindowView(mContext, null);
         mStatusBarWindow.setService(this);
 
+        // this instance is no longer recreated. We just add/remove observers (header view)
+        mStatusBarHeaderMachine = new StatusBarHeaderMachine(mContext, getHeadersThemedResources());
+
         super.start(); // calls createAndAddWindows()
 
         mMediaSessionManager
@@ -1687,7 +1696,11 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mStatusBarView.setScrimController(mScrimController);
         mDozeScrimController = new DozeScrimController(mScrimController, context);
         mVisualizerView = (VisualizerView) scrimView.findViewById(R.id.visualizerview);
-
+        
+        if (mHeader != null) {
+            mStatusBarHeaderMachine.removeObserver(mHeader);
+        }
+        
         mHeader = (StatusBarHeaderView) mStatusBarWindowContent.findViewById(R.id.header);
         mHeader.setActivityStarter(this);
         mKeyguardStatusBar = (KeyguardStatusBarView) mStatusBarWindowContent.findViewById(R.id.keyguard_header);
@@ -2088,9 +2101,8 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 
         // Private API call to make the shadows look better for Recents
         ThreadedRenderer.overrideProperty("ambientRatio", String.valueOf(1.5f));
-        mStatusBarHeaderMachine = new StatusBarHeaderMachine(mContext);
         mStatusBarHeaderMachine.addObserver(mHeader);
-        mStatusBarHeaderMachine.updateEnablement();
+        mStatusBarHeaderMachine.forceUpdate();
         UpdateNotifDrawerClearAllIconColor();
         updateNetworkIconColors();
         return mStatusBarView;
@@ -2311,6 +2323,18 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 
     private Resources getNavbarThemedResources() {
         String pkgName = mCurrentTheme.getOverlayForNavBar();
+        Resources res = null;
+        try {
+            res = mContext.getPackageManager().getThemedResourcesForApplication(
+                    mContext.getPackageName(), pkgName);
+        } catch (PackageManager.NameNotFoundException e) {
+            res = mContext.getResources();
+        }
+        return res;
+    }
+
+    private Resources getHeadersThemedResources() {
+        String pkgName = mCurrentTheme.getOverlayForHeaders();
         Resources res = null;
         try {
             res = mContext.getPackageManager().getThemedResourcesForApplication(
@@ -3756,7 +3780,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         }
         checkBarModes();
     }
-	
+
 	@Override // CommandQueue
     public void showCustomIntentAfterKeyguard(Intent intent) {
         startActivityDismissingKeyguard(intent, false, false);
@@ -4861,9 +4885,13 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
        SettingsObserver observer = new SettingsObserver(mHandler);
         // detect theme change.
         ThemeConfig newTheme = newConfig != null ? newConfig.themeConfig : null;
+        final boolean updateHeaders = shouldUpdateHeaders(mCurrentTheme, newTheme);
         final boolean updateStatusBar = shouldUpdateStatusbar(mCurrentTheme, newTheme);
         final boolean updateNavBar = shouldUpdateNavbar(mCurrentTheme, newTheme);
         if (newTheme != null) mCurrentTheme = (ThemeConfig) newTheme.clone();
+        if (updateHeaders) {
+            mStatusBarHeaderMachine.updateResources(getHeadersThemedResources());
+        }
         if (updateStatusBar) {
 	    DontStressOnRecreate();
             if (mNavigationBarView != null) {
@@ -4903,6 +4931,31 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         updateVisibleToUser();
 
     }   
+
+    /**
+     * Determines if we need to reload status bar header resources due to a theme change.
+     *
+     * @param oldTheme
+     * @param newTheme
+     * @return True if we should reload status bar header resources
+     */
+    private boolean shouldUpdateHeaders(ThemeConfig oldTheme, ThemeConfig newTheme) {
+        // no newTheme, so no need to update status bar headers
+        if (newTheme == null)
+            return false;
+
+        final String headers = newTheme.getOverlayForHeaders();
+        boolean isNewThemeChange = false;
+        try {
+            isNewThemeChange = mLastThemeChangeTime < mThemeService.getLastThemeChangeTime();
+        } catch (RemoteException e) {
+            /* ignore */
+        }
+
+        return oldTheme == null ||
+                (headers != null && !headers.equals(oldTheme.getOverlayForHeaders()) ||
+                isNewThemeChange);
+    }
 
     /**
      * Determines if we need to recreate the status bar due to a theme change.  We currently
