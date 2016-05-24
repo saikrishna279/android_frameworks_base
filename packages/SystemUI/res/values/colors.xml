@@ -162,7 +162,4 @@
     <color name="card_backgroundExpand">#00ffffff</color>
 
     <color name="card_text_color_header">#ff000000</color>
-
-    <!-- Used by selector -->
-    <color name="card_pressed">#7e3c3c3c</color>
 </resources>
