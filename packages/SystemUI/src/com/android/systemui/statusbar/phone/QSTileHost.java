@@ -61,6 +61,7 @@ import com.android.systemui.qs.tiles.LocationTile;
 import com.android.systemui.qs.tiles.PieTile;
 import com.android.systemui.qs.tiles.AppCircleBarTile;
 import com.android.systemui.qs.tiles.ExpandedDesktopTile;
+import com.android.systemui.qs.tiles.GhostTorchTile;
 import com.android.systemui.qs.tiles.KernelAdiutorTile;
 import com.android.systemui.qs.tiles.HardwareKeysTile;
 import com.android.systemui.qs.tiles.PulseTile;
@@ -362,6 +363,7 @@ public class QSTileHost implements QSTile.Host, Tunable {
 	else if (tileSpec.equals("themes")) return new ThemesTile(this);
 	else if (tileSpec.equals("navbar")) return new NavigationBarTile(this);
 	else if (tileSpec.equals("appcirclebar")) return new AppCircleBarTile(this);
+	else if (tileSpec.equals("ghost_torch")) return new GhostTorchTile(this);
 	else if (tileSpec.equals("kernel_adiutor")) return new KernelAdiutorTile(this);
 	else if (tileSpec.equals("screenrecord")) return new ScreenrecordTile(this);
 	else if (tileSpec.equals("gesture_anywhere")) return new GestureAnyWhereTile(this);
